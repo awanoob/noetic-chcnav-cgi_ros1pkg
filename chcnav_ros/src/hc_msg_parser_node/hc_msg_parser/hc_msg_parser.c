@@ -523,7 +523,7 @@ static int hc__msg_deal_S19(hc__msg_parser_t *parser, hc__msg_token_t *token, un
     nmea_head_2[0] = token->token_value.value[1];
     nmea_head_2[1] = token->token_value.value[2];
 
-    if (strncmp(nmea_head_2, "GP") == 0 || strncmp(nmea_head_2, "GN") == 0 || strncmp(nmea_head_2, "BD") == 0 || strncmp(nmea_head_2, "GT") == 0)
+    if (strncmp(nmea_head_2, "GP", 2) == 0 || strncmp(nmea_head_2, "GN", 2) == 0 || strncmp(nmea_head_2, "BD", 2) == 0 || strncmp(nmea_head_2, "GT", 2) == 0)
     {
         if (',' == c)
             parser->state = HC__STATE_S21;
@@ -606,7 +606,7 @@ static int hc__msg_deal_S23(hc__msg_parser_t *parser, hc__msg_token_t *token, un
     nmea_end_2[0] = token->token_value.value[token->token_value.value_len - 2];
     nmea_end_2[1] = token->token_value.value[token->token_value.value_len - 1];
 
-    if (strncmp(nmea_end_2, "\r\n") == 0)
+    if (strncmp(nmea_end_2, "\r\n", 2) == 0)
     {
         parser->state = HC__STATE_S24;
     }

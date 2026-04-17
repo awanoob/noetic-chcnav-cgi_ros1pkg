@@ -16,6 +16,9 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <netinet/tcp.h>
+
+#define TCP_MAX_CONNECT_NUM 300
 
 class tcp_common : public hc__device_connector
 {
@@ -25,6 +28,38 @@ private:
     int port;                       // 端口号
     int socketfd;                   // socket fd
     struct sockaddr_in client_addr; // 客户端信息结构体
+
+    bool setupKeepAlive() {
+        int keepalive = 1;    // 启用保活机制
+        int keepidle = 5;    // 空闲5秒后开始发送保活包
+        int keepintvl = 5;    // 发送保活包的间隔为5秒
+        int keepcnt = 3;      // 最多发送3次保活包
+
+        if (setsockopt(socketfd, SOL_SOCKET, SO_KEEPALIVE, &keepalive, sizeof(keepalive)) < 0) {
+            RCLCPP_ERROR(rclcpp::get_logger("tcp_common"), "设置SO_KEEPALIVE失败");
+            return false;
+        }
+
+        // 设置保活空闲时间
+        if (setsockopt(socketfd, IPPROTO_TCP, TCP_KEEPIDLE, &keepidle, sizeof(keepidle)) < 0) {
+            RCLCPP_ERROR(rclcpp::get_logger("tcp_common"), "设置TCP_KEEPIDLE失败");
+            return false;
+        }
+
+        // 设置保活探测包发送间隔
+        if (setsockopt(socketfd, IPPROTO_TCP, TCP_KEEPINTVL, &keepintvl, sizeof(keepintvl)) < 0) {
+            RCLCPP_ERROR(rclcpp::get_logger("tcp_common"), "设置TCP_KEEPINTVL失败");
+            return false;
+        }
+
+        // 设置保活探测次数
+        if (setsockopt(socketfd, IPPROTO_TCP, TCP_KEEPCNT, &keepcnt, sizeof(keepcnt)) < 0) {
+            RCLCPP_ERROR(rclcpp::get_logger("tcp_common"), "设置TCP_KEEPCNT失败");
+            return false;
+        }
+
+        return true;
+    }
 
 public:
     tcp_common(std::string host, int port) : hc__device_connector()
@@ -37,46 +72,52 @@ public:
         this->client_addr.sin_addr.s_addr = inet_addr(this->host.c_str());
     }
 
-    int connect(void)
-    {
+    int connect() override {
         if (this->status != -1)
             this->disconnect();
 
-        // 建立套接字
         this->socketfd = socket(AF_INET, SOCK_STREAM, 0);
-
-        int ret = ::connect(this->socketfd, (struct sockaddr *)&this->client_addr, sizeof(struct sockaddr_in));
-        if (ret < 0)
-        {
-            this->status = -1;
-            fprintf(stderr, "tcp connect fail!\n");
+        if (this->socketfd < 0) {
+            RCLCPP_ERROR(rclcpp::get_logger("tcp_common"), "创建socket失败");
             return -1;
         }
 
-        fprintf(stdout, "tcp connect success!\n");
+        // 设置TCP保活机制
+        if (!setupKeepAlive()) {
+            RCLCPP_WARN(rclcpp::get_logger("tcp_common"), "TCP保活机制设置失败");
+        }
+
+        if (::connect(this->socketfd, (struct sockaddr *)&this->client_addr, sizeof(this->client_addr)) == -1) {
+            this->status = -1;
+            RCLCPP_ERROR(rclcpp::get_logger("tcp_common"), 
+                "连接服务器失败: %s:%d", this->host.c_str(), this->port);
+            return -1;
+        }
+
         this->status = 1;
-
-        int flag = fcntl(this->socketfd, F_GETFL, 0);
-        fcntl(this->socketfd, F_SETFL, flag | O_NONBLOCK);
-
+        RCLCPP_INFO(rclcpp::get_logger("tcp_common"), 
+            "成功连接到服务器: %s:%d", this->host.c_str(), this->port);
         return 0;
     }
 
     void judge_connect_state()
     {
-        if(status != 1)
-        {
-            while(1)
-            {
-                if(connect() == 0)
-                {
-                    ROS_INFO("tcp socket reconnect success");
-                    break;
-                }
-                ROS_ERROR("tcp socket reconnect fail!");
-                usleep(3 * 1000 * 1000);
-            }
-        }
+        if(this->status != 1)
+    	{
+    	    int reconnect_num = 0;
+    	    while(reconnect_num < TCP_MAX_CONNECT_NUM)
+    	    {
+    	    	if(connect() == 0)
+    	    	{
+    	    	    fprintf(stdout, "tcp reconnect success!\n");
+    	    	    break; 
+    	    	}
+    	    	
+    	    	reconnect_num++;
+    	    	fprintf(stderr, "tcp reconnect fail!\n");
+    	    	usleep(100 * 1000);
+    	    }
+    	}
     }
 
     int write(char *data, unsigned int len)
