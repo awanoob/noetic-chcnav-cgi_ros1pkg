@@ -24,8 +24,8 @@
             <param name="host" value="119.3.136.126"/>
             <param name="port" value="8002" type="string"/>
             <param name="mountpoint" value="RTCM33"/>
-            <param name="username" value="dhjs0002"/>
-            <param name="password" value="32200004" type="string"/>
+            <param name="username" value="abcd1234"/>
+            <param name="password" value="12345678" type="string"/>
             
 			<!-- 下面的c_rs232是frame_id，需要和上面的一致 -->
             <remap from="/chcnav/ntrip_server/differential_data" to="/chcnav/c_rs232/write"/>
