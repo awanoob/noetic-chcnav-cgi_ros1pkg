@@ -11,6 +11,7 @@ public:
      */
     virtual int connect(void) = 0;
     virtual void judge_connect_state() {};
+    virtual unsigned int get_connection_generation() const { return 0; }
     /**
      * @brief Send information to the device
      *

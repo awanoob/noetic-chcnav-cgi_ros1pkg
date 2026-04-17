@@ -142,14 +142,16 @@ int hc__msg_parser_scan(hc__msg_parser_t *parser, hc__msg_token_t *token)
         if (parser->buffer.pointer == parser->buffer.last)
         {
             memset((void *)parser->buffer.value, 0x00, parser->buffer.end);
-            parser->read_handler((void *)parser->buffer.value, parser->buffer.end, &parser->buffer.last, parser->parser_id);
+            if (parser->read_handler((void *)parser->buffer.value, parser->buffer.end, &parser->buffer.last, parser->parser_id) == -1)
+                return -1;
             parser->buffer.pointer = 0;
             // wait until at least one char read
             while (parser->buffer.last <= 0)
             {
-                parser->read_handler((void *)parser->buffer.value, parser->buffer.end, &parser->buffer.last, parser->parser_id);
+                if (parser->read_handler((void *)parser->buffer.value, parser->buffer.end, &parser->buffer.last, parser->parser_id) == -1)
+                    return -1;
                 usleep(1000);
-            }  
+            }
         }
 
         unsigned char c = ((unsigned char *)parser->buffer.value)[parser->buffer.pointer];

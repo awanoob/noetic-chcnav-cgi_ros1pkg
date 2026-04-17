@@ -11,8 +11,8 @@
             <!-- tcp settings -->
             <param name="type" value="tcp"/>
             <param name="rate" value="1000"/>           <!-- 节点每秒解析最大协议数量 -->
-            <param name="host" value="192.168.200.1"/>  <!-- ip 地址 -->
-            <param name="port" value="9904"/>           <!-- 端口号 -->
+            <param name="host" value="172.28.48.1"/>  <!-- ip 地址 -->
+            <param name="port" value="12003"/>           <!-- 端口号 -->
             <!-- tcp settings end -->
         </node>
     </group>

@@ -76,7 +76,19 @@ private:
     unsigned int hz = 0;     // 消息发布频率（每秒最大发布消息数量）
     hc__msg_parser_t parser; // 数据解析器
     hc__msg_token_t token;   // token
+    unsigned int last_connection_generation = 0;
     string node_name;        // 节点名称
+
+    void reset_parser_state()
+    {
+        this->parser.error.error_code = HC__STATE_NONE;
+        memset(this->parser.error.description, 0x00, sizeof(this->parser.error.description));
+        this->parser.state = HC__STATE_S0;
+        this->parser.buffer.pointer = 0;
+        this->parser.buffer.last = 0;
+        this->parser.specified_len = 0;
+        hc__msg_reset_token(&this->token);
+    }
 public:
     ros::NodeHandle *nh;         // 节点handle
     ros::NodeHandle *private_nh; // private 节点handle
@@ -118,10 +130,12 @@ public:
 
             // 初始化解析器
             hc__init_msg_parser(&this->parser, HC_PROTOCOL_MAX_LEN, parser_read_handler, this);
+            hc__msg_reset_token(&this->token);
 
             this->device_connector = device_connector;
             this->hz = hz;
             this->node_name = node_name;
+            this->last_connection_generation = this->device_connector->get_connection_generation();
 
             this->state = 1;
         }
@@ -158,7 +172,16 @@ public:
             {
                 device_connector->judge_connect_state();
 
-                hc__msg_parser_scan(&this->parser, &this->token);
+                unsigned int current_connection_generation = this->device_connector->get_connection_generation();
+                if (current_connection_generation != this->last_connection_generation)
+                {
+                    this->reset_parser_state();
+                    this->last_connection_generation = current_connection_generation;
+                    ROS_INFO("TCP parser reset after reconnect, generation=%u", current_connection_generation);
+                }
+
+                if (hc__msg_parser_scan(&this->parser, &this->token) == -1)
+                    continue;
                 switch (token.type)
                 {
                     case HC__TOKERN_HC_SHORT_MSG:
@@ -242,9 +265,14 @@ int parser_read_handler(void *buffer, size_t size, size_t *size_read, void *pars
 
     int read_size = parser_node->device_connector->read((char *)buffer, size);
     if (read_size <= size && read_size > 0)
+    {
         *size_read = read_size;
-    else
-        *size_read = 0;
+        return 0;
+    }
+
+    *size_read = 0;
+    if (read_size < 0)
+        return -1;
 
     return 0;
 };
